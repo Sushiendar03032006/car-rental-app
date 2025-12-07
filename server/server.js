@@ -22,18 +22,19 @@ const allowedOrigins = [
 ];
 
 // 4. ✅ Apply CORS Middleware (Use app AFTER initializing it)
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true 
-}));
+const cors = require('cors');
+
+const corsOptions = {
+  origin: [
+    'https://frontend-psp6a2xia-sushiendars-projects.vercel.app', 
+    'http://localhost:5173'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 
 // 5. Standard Middleware
 app.use(express.json());
