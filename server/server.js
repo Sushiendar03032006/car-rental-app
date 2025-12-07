@@ -14,18 +14,36 @@ const PORT = process.env.PORT || 4000;
 // 2. Connect Database
 connectDB();
 
-// 3. ✅ CORS Configuration
+\// ... imports
+
+// 3. ✅ Smart CORS Configuration
 const corsOptions = {
-  origin: [
-    'https://frontend-psp6a2xia-sushiendars-projects.vercel.app', // Your specific Vercel link
-    'https://frontend-delta-coral-30.vercel.app', // Your other link (optional)
-    'http://localhost:5173', // Vite local
-    'http://localhost:3000'  // React generic local
-  ],
+  origin: function (origin, callback) {
+    // 1. Allow requests with no origin (like Postman or mobile apps)
+    if (!origin) return callback(null, true);
+
+    // 2. Allow Localhost (for development)
+    if (origin.includes('localhost')) {
+      return callback(null, true);
+    }
+
+    // 3. Allow ANY Vercel deployment (Production & Previews)
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+
+    // 4. Block everything else
+    const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+    return callback(new Error(msg), false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
+
+app.use(cors(corsOptions));
+
+// ... rest of your code
 
 app.use(cors(corsOptions));
 
