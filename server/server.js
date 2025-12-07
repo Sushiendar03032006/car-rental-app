@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 4000;
 // 2. Connect Database
 connectDB();
 
-\// ... imports
+// ... imports
 
 // 3. ✅ Smart CORS Configuration
 const corsOptions = {
