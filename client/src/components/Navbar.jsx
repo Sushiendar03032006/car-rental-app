@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { assets, menuLinks } from "../assets/assets";
 import car_rental_app_logo from "../assets/car-rental-app-logo.png";
 import { useAppContext } from "../context/AppContext";
 
 const Navbar = () => {
   const { setShowLogin, user, logout, isOwner } = useAppContext();
-
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,170 +18,173 @@ const Navbar = () => {
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSearch();
-  };
-
   return (
-    // Changed z-50 to z-40 to ensure Login Modal (z-[9999]) is always on top
-    <header
-      className={`sticky top-0 z-40 flex items-center justify-between w-full 
-      px-4 sm:px-8 lg:px-16 py-3 
-      border-b border-gray-200 shadow-sm bg-white/95 backdrop-blur-sm`}
-    >
-      {/* 1. Logo Section */}
-      <Link to="/" className="flex items-center gap-2 group">
-        <img 
-            src={car_rental_app_logo} 
-            alt="DriveNow Logo" 
-            className="h-8 w-auto group-hover:scale-105 transition-transform duration-300" 
-        />
-        <span className="text-xl font-bold text-gray-800 tracking-tight">DriveNow</span>
-      </Link>
-
-      {/* 2. Desktop Navigation & Actions */}
-      <nav
-        className={`
-          fixed sm:static top-16 right-0 
-          h-screen sm:h-auto 
-          w-[85%] sm:w-auto
-          flex flex-col sm:flex-row 
-          items-start sm:items-center 
-          gap-6 sm:gap-6 p-6 sm:p-0 
-          bg-white sm:bg-transparent shadow-2xl sm:shadow-none 
-          transition-transform duration-300 ease-in-out 
-          z-40 border-l sm:border-l-0 border-gray-100
-          ${open ? "translate-x-0" : "translate-x-full sm:translate-x-0"}
-        `}
-      >
-        {/* Navigation Links */}
-        {menuLinks.map((link, index) => (
-          <Link
-            key={index}
-            to={link.path}
-            className="text-gray-600 font-medium hover:text-blue-600 transition-colors text-base"
-            onClick={() => setOpen(false)}
-          >
-            {link.name}
-          </Link>
-        ))}
-
-        {/* Search Bar */}
-        <div className="
-          flex items-center text-sm gap-2 
-          border border-gray-200 px-4 py-2 
-          rounded-full bg-gray-50
-          w-full sm:w-60 
-          focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all
-        ">
-          <input
-            type="text"
-            placeholder="Search cars..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full bg-transparent outline-none text-gray-700"
-          />
-          <img
-            src={assets.search_icon}
-            className="h-4 w-4 opacity-50 cursor-pointer hover:opacity-100"
-            alt="search"
-            onClick={handleSearch}
-          />
-        </div>
-
-        <div className="h-6 w-px bg-gray-200 hidden sm:block mx-1"></div>
-
-        {/* 3. User Profile & Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+    <>
+      {/* 1. MAIN NAVBAR (Sticky Header)
+        - z-40: Stays below the Login Modal (z-[9999])
+        - w-full: Full width
+      */}
+      <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between px-4 sm:px-8 lg:px-16 py-3">
           
-          {/* User Info (Visible only when logged in) */}
-          {user && (
-            <div className="flex items-center gap-3 pl-1 mr-2 group cursor-default">
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 ring-2 ring-transparent group-hover:ring-blue-50 transition-all">
-                    <span className="font-bold text-sm">
-                        {user.name?.charAt(0).toUpperCase() || "U"}
-                    </span>
-                </div>
-                
-                {/* Text Details */}
-                <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Welcome</span>
-                    <span className="text-sm text-gray-700 font-semibold leading-none">
-                        {user.name?.split(" ")[0]}
-                    </span>
-                </div>
+          {/* LOGO */}
+          <Link to="/" className="flex items-center gap-2 group">
+            <img 
+              src={car_rental_app_logo} 
+              alt="DriveNow Logo" 
+              className="h-8 w-auto group-hover:scale-105 transition-transform duration-300" 
+            />
+            <span className="text-xl font-bold text-gray-800 tracking-tight">DriveNow</span>
+          </Link>
+
+          {/* DESKTOP NAVIGATION (Hidden on Mobile) */}
+          <nav className="hidden sm:flex items-center gap-6">
+            {menuLinks.map((link, index) => (
+              <Link 
+                key={index} 
+                to={link.path} 
+                className="text-gray-600 font-medium hover:text-blue-600 transition-colors"
+              >
+                {link.name}
+              </Link>
+            ))}
+            
+            {/* Search Bar */}
+            <div className="flex items-center bg-gray-100 rounded-full px-4 py-1.5 border focus-within:border-blue-500 focus-within:bg-white transition-all">
+               <input 
+                  type="text" 
+                  placeholder="Search..." 
+                  className="bg-transparent outline-none text-sm w-32 focus:w-48 transition-all"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+               />
+               <img src={assets.search_icon} alt="Search" className="h-4 w-4 opacity-50 cursor-pointer" onClick={handleSearch} />
             </div>
-          )}
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            {/* DASHBOARD BUTTON */}
-            {isOwner && (
-                <button
-                onClick={() => {
-                    navigate("/owner");
-                    setOpen(false);
-                }}
-                className="
-                    flex-1 sm:flex-none
-                    px-5 py-2.5 
-                    text-sm font-semibold text-white 
-                    bg-blue-600 hover:bg-blue-700 
-                    rounded-lg shadow-md shadow-blue-200 
-                    transition-all duration-200 transform hover:-translate-y-0.5
-                "
-                >
-                Dashboard
-                </button>
-            )}
+            {/* User Profile / Login */}
+            <div className="flex items-center gap-3">
+                {user ? (
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold border border-blue-200">
+                        {user.name[0].toUpperCase()}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500 font-semibold">Hello,</span>
+                        <span className="text-sm font-bold text-gray-800 leading-none">{user.name.split(' ')[0]}</span>
+                      </div>
+                      <button onClick={logout} className="ml-2 text-sm font-medium text-red-500 hover:text-red-700">Logout</button>
+                   </div>
+                ) : (
+                   <button 
+                      onClick={() => setShowLogin(true)} 
+                      className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-md transition-transform hover:-translate-y-0.5"
+                   >
+                      Login
+                   </button>
+                )}
+            </div>
+          </nav>
 
-            {/* LOGIN / LOGOUT BUTTON */}
-            <button
-                onClick={() => {
-                  if (user) {
-                    logout();
-                  } else {
-                    setShowLogin(true);
-                  }
-                  setOpen(false);
-                }}
-                className={`
-                flex-1 sm:flex-none
-                px-5 py-2.5 rounded-lg text-sm font-semibold 
-                transition-all duration-200 border
-                ${user 
-                  ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 shadow-sm" 
-                  : "bg-blue-600 border-transparent text-white hover:bg-blue-700 shadow-md shadow-blue-200 transform hover:-translate-y-0.5"
-                }
-                `}
-            >
-                {user ? "Logout" : "Login"}
-            </button>
-          </div>
+          {/* MOBILE MENU TOGGLE BUTTON */}
+          <button 
+            className="sm:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            onClick={() => setOpen(true)}
+          >
+             <img src={assets.menu_icon} alt="Menu" className="h-6 w-6" />
+          </button>
         </div>
-      </nav>
+      </header>
 
-      {/* Mobile Menu Toggle - Z-Index 41 to stay above header but below Login */}
-      <button
-        className="sm:hidden cursor-pointer z-41 p-2 rounded-md hover:bg-gray-100 transition"
-        onClick={() => setOpen(!open)}
-      >
-        <img
-          src={open ? assets.close_icon : assets.menu_icon}
-          className="h-6 w-6 opacity-80"
-          alt="menu"
-        />
-      </button>
-
-      {/* Mobile Overlay Backdrop */}
-      {open && (
+      {/* 2. MOBILE MENU OVERLAY (The Fix)
+        - fixed inset-0: Covers the whole screen, removed from layout flow (Stops Side Scrolling!)
+        - z-50: Sits on top of the navbar
+        - invisible/visible: Hides the container completely when closed so it doesn't take up space
+      */}
+      <div className={`fixed inset-0 z-50 flex justify-end transition-all duration-300 ${open ? "visible opacity-100" : "invisible opacity-0"}`}>
+        
+        {/* Backdrop (Click to close) */}
         <div 
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 sm:hidden"
-            onClick={() => setOpen(false)}
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+          onClick={() => setOpen(false)}
         ></div>
-      )}
-    </header>
+
+        {/* Sidebar Content */}
+        <div 
+          className={`
+            relative w-[75%] max-w-sm h-full bg-white shadow-2xl flex flex-col 
+            transform transition-transform duration-300 ease-in-out
+            ${open ? "translate-x-0" : "translate-x-full"}
+          `}
+        >
+           {/* Sidebar Header */}
+           <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <span className="text-lg font-bold text-gray-800">Menu</span>
+              <button 
+                onClick={() => setOpen(false)}
+                className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                 <img src={assets.close_icon} alt="Close" className="h-5 w-5" />
+              </button>
+           </div>
+
+           {/* Sidebar Links */}
+           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-2">
+              {menuLinks.map((link, index) => (
+                <Link 
+                   key={index} 
+                   to={link.path} 
+                   onClick={() => setOpen(false)}
+                   className="flex items-center gap-3 px-4 py-3 text-gray-600 font-medium hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                >
+                  {link.name}
+                </Link>
+              ))}
+
+              {isOwner && (
+                 <button
+                    onClick={() => { navigate("/owner"); setOpen(false); }}
+                    className="flex items-center gap-3 px-4 py-3 text-left text-gray-600 font-medium hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                 >
+                    Dashboard
+                 </button>
+              )}
+           </div>
+
+           {/* Sidebar Footer (Auth) */}
+           <div className="p-5 border-t border-gray-100 bg-gray-50">
+              {user ? (
+                 <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3 px-2">
+                       <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg">
+                          {user.name[0].toUpperCase()}
+                       </div>
+                       <div>
+                          <p className="text-sm font-bold text-gray-800">{user.name}</p>
+                          <p className="text-xs text-gray-500">Logged in</p>
+                       </div>
+                    </div>
+                    <button 
+                      onClick={() => { logout(); setOpen(false); }} 
+                      className="w-full py-2.5 mt-2 text-sm font-semibold text-red-600 bg-white border border-red-100 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                       Logout
+                    </button>
+                 </div>
+              ) : (
+                 <div className="flex flex-col gap-3">
+                    <button 
+                       onClick={() => { setShowLogin(true); setOpen(false); }} 
+                       className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold shadow-md hover:bg-blue-700 transition-colors"
+                    >
+                       Login / Sign Up
+                    </button>
+                 </div>
+              )}
+           </div>
+        </div>
+      </div>
+    </>
   );
 };
 
