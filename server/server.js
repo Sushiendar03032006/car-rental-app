@@ -15,7 +15,7 @@ import cors from "cors"; // Ensure this is imported
 const allowedOrigins = [
   "http://localhost:5173",  // For local testing
   "http://localhost:4000",
-  "https://frontend-delta-coral-30.vercel.app", // 👈 ADD YOUR VERCEL URL HERE
+  "https://frontend-delta-coral-30.vercel.app"// 👈 ADD YOUR VERCEL URL HERE
          
 ];
 
