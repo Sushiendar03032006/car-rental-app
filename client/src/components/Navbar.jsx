@@ -24,8 +24,9 @@ const Navbar = () => {
   };
 
   return (
+    // Changed z-50 to z-40 to ensure Login Modal (z-[9999]) is always on top
     <header
-      className={`sticky top-0 z-50 flex items-center justify-between w-full 
+      className={`sticky top-0 z-40 flex items-center justify-between w-full 
       px-4 sm:px-8 lg:px-16 py-3 
       border-b border-gray-200 shadow-sm bg-white/95 backdrop-blur-sm`}
     >
@@ -116,7 +117,7 @@ const Navbar = () => {
           )}
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            {/* DASHBOARD BUTTON - Primary Action (Solid Blue) */}
+            {/* DASHBOARD BUTTON */}
             {isOwner && (
                 <button
                 onClick={() => {
@@ -151,8 +152,8 @@ const Navbar = () => {
                 px-5 py-2.5 rounded-lg text-sm font-semibold 
                 transition-all duration-200 border
                 ${user 
-                    ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 shadow-sm"  // Logout: White/Gray (Clean)
-                    : "bg-blue-600 border-transparent text-white hover:bg-blue-700 shadow-md shadow-blue-200 transform hover:-translate-y-0.5" // Login: Blue (Prominent)
+                  ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 shadow-sm" 
+                  : "bg-blue-600 border-transparent text-white hover:bg-blue-700 shadow-md shadow-blue-200 transform hover:-translate-y-0.5"
                 }
                 `}
             >
@@ -162,9 +163,9 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* Mobile Menu Toggle */}
+      {/* Mobile Menu Toggle - Z-Index 41 to stay above header but below Login */}
       <button
-        className="sm:hidden cursor-pointer z-50 p-2 rounded-md hover:bg-gray-100 transition"
+        className="sm:hidden cursor-pointer z-41 p-2 rounded-md hover:bg-gray-100 transition"
         onClick={() => setOpen(!open)}
       >
         <img
