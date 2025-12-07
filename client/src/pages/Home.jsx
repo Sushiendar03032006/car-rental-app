@@ -1,15 +1,16 @@
-// Home.jsx
 import React from 'react'
 import Hero from '../components/Hero'
 import FeaturedSection from '../components/FeaturedSection'
 import Testimonial from '../components/Testimonial'
 import Newsletter from '../components/NewsLetter'
-// import Footer from '../components/Footer' // Footer is likely in App.jsx or Layout
 
 const Home = () => {
   return (
-    // Added overflow-hidden to prevent horizontal scrolling issues on mobile
-    <div className="w-full overflow-hidden">
+    // FIX EXPLANATION:
+    // 1. w-full: Forces the container to be exactly 100% of the screen width.
+    // 2. overflow-x-hidden: The "Nuclear" fix. It cuts off anything sticking out to the right.
+    // 3. relative: Helps contain any child elements using absolute positioning.
+    <div className="w-full relative overflow-x-hidden">
         <Hero/>
         <FeaturedSection/>
         <Testimonial/>
