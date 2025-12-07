@@ -41,22 +41,28 @@ const Login = () => {
       toast.error(errorMessage);
     }
   };
+  // inside Login.jsx
 
-  return (
+return (
+    // Updated Container: High Z-index, full screen coverage
     <div
       onClick={() => setShowLogin(false)}
-      className="fixed top-0 bottom-0 left-0 right-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <form
         onSubmit={onSubmitHandler}
         onClick={(e) => e.stopPropagation()}
-        className="flex flex-col gap-4 p-8 w-80 sm:w-96 rounded-xl shadow-2xl border border-gray-100 bg-white relative animate-fade-in"
+        // Updated Form: 
+        // - w-[90%] makes it responsive on small mobile screens
+        // - max-w-md keeps it from getting too big on desktop
+        // - max-h-[90vh] and overflow-y-auto ensures it doesn't get cut off on landscape mode
+        className="flex flex-col gap-4 p-6 sm:p-8 w-[90%] max-w-md bg-white rounded-xl shadow-2xl relative animate-fade-in max-h-[90vh] overflow-y-auto"
       >
-        {/* Close Button (Optional UX Improvement) */}
+        {/* Close Button */}
         <button 
           type="button"
           onClick={() => setShowLogin(false)} 
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 transition-colors"
         >
           ✕
         </button>
