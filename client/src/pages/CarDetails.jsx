@@ -6,7 +6,6 @@ import { useAppContext } from "../context/AppContext";
 import { toast } from "react-hot-toast";
 
 const CarDetails = () => {
-  // ❌ REMOVED: FLASK_API_URL (We talk to Node.js, not Python directly)
   const { id } = useParams();
 
   const {
@@ -16,22 +15,22 @@ const CarDetails = () => {
     setPickupDate,
     returnDate,
     setReturnDate,
-    user, // Added user to check login status
+    user, 
   } = useAppContext();
 
   const navigate = useNavigate();
   const [car, setCar] = useState(null);
 
   // Form States
-  const [name, setName] = useState(user?.name || ""); // Auto-fill name if logged in
+  const [name, setName] = useState(user?.name || ""); 
   const [phone, setPhone] = useState("");
   const [startLocation, setStartLocation] = useState("");
   const [endLocation, setEndLocation] = useState("");
   const [estimatedPrice, setEstimatedPrice] = useState(null);
-  const [loadingPrice, setLoadingPrice] = useState(false); // Added loading state
+  const [loadingPrice, setLoadingPrice] = useState(false); 
 
   // ----------------------------------------------------------------
-  // 📌 FIX: Robust Car Finding (Context -> Fallback to API)
+  // 1. Fetch Car Data
   // ----------------------------------------------------------------
   useEffect(() => {
     const fetchCarData = async () => {
@@ -43,14 +42,12 @@ const CarDetails = () => {
 
         if (foundCar) {
           setCar(foundCar);
-          // Optional: Set default location from car's base location
           setStartLocation(foundCar.location); 
           return; 
         }
       }
 
       try {
-        // Fallback to API if page refreshed
         const { data } = await axios.get(`/api/user/cars`);
         if (data.success) {
            const found = data.cars.find(c => c._id === id || c.id === id);
@@ -71,7 +68,7 @@ const CarDetails = () => {
   }, [id, cars]); 
 
   // ----------------------------------------------------------------
-  // 📌 Generate Price (Via Node.js Backend)
+  // 2. Generate Price (FIXED SECTION)
   // ----------------------------------------------------------------
   const handleGeneratePrice = async () => {
     if (!car) return;
@@ -82,25 +79,33 @@ const CarDetails = () => {
     if (!startLocation || !endLocation)
       return toast.error("Please enter start & end locations.");
 
-    setLoadingPrice(true); // Start Loading
+    setLoadingPrice(true); 
 
     try {
-      // 📌 CORRECTED: Send data to Node.js, NOT Flask directly
-      // Node.js will fetch the car details from DB and talk to Python
       const payload = {
         car: car._id, 
         pickupDate,
         returnDate,
-        // We pass locations so the backend can calculate distance if needed
         startLocation, 
         endLocation 
       };
 
+      console.log("Sending Payload:", payload); // Debugging
+
       const { data } = await axios.post("/api/bookings/generate-price", payload);
 
+      console.log("API Response:", data); // Check your console to see the real data!
+
       if (data.success) {
-        setEstimatedPrice(data.price);
-        toast.success("Dynamic Price Calculated!");
+        // ✅ FIX: Check for multiple possible names (totalPrice, price, total_price)
+        const finalPrice = data.totalPrice || data.price || data.total_price;
+        
+        if (finalPrice) {
+            setEstimatedPrice(finalPrice);
+            toast.success("Dynamic Price Calculated!");
+        } else {
+            toast.error("Price calculated but value is missing. Check Console.");
+        }
       } else {
         toast.error(data.message || "Failed to calculate price");
       }
@@ -108,12 +113,12 @@ const CarDetails = () => {
       console.error(err);
       toast.error("Price calculation failed. Check server.");
     } finally {
-      setLoadingPrice(false); // Stop Loading
+      setLoadingPrice(false); 
     }
   };
 
   // ----------------------------------------------------------------
-  // 📌 BOOK NOW
+  // 3. Submit Booking
   // ----------------------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -158,10 +163,6 @@ const CarDetails = () => {
       toast.error(error.response?.data?.message || error.message);
     }
   };
-
-  // ----------------------------------------------------------------
-  // UI RENDER
-  // ----------------------------------------------------------------
 
   if (!car) return <Loader />;
 
