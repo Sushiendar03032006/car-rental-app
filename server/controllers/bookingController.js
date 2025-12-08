@@ -2,7 +2,9 @@ import Booking from "../models/Booking.js";
 import Car from "../models/Car.js";
 import axios from "axios"; 
 
-const FLASK_ML_API_URL = process.env.FLASK_ML_API_URL || 'http://127.0.0.1:5000/predict_price';
+// ✅ UPDATED: Points to your Live Python AI Server on Render
+// NOTE: We added '/predict_price' at the end because that is the specific function route
+const FLASK_ML_API_URL = process.env.FLASK_ML_API_URL || 'https://backend-flask-ml.onrender.com/predict_price';
 
 // ----------------------------------------------------------------
 // 1. HELPER: Check Availability
@@ -22,12 +24,22 @@ const checkAvailability = async (carId, pickupDate, returnDate) => {
 };
 
 // ----------------------------------------------------------------
-// 2. HELPER: Get Dynamic Price
+// 2. HELPER: Get Dynamic Price (ROBUST VERSION)
 // ----------------------------------------------------------------
 const getDynamicPrice = async (carData, pickupDate, returnDate, userStartLoc, userEndLoc) => {
+  // 1. Calculate Days
   const picked = new Date(pickupDate);
   const returned = new Date(returnDate);
-  const noOfDays = Math.ceil((returned - picked) / (1000 * 60 * 60 * 24));
+  let noOfDays = Math.ceil((returned - picked) / (1000 * 60 * 60 * 24));
+  
+  // Safety: Ensure minimum 1 day
+  if (noOfDays <= 0 || isNaN(noOfDays)) noOfDays = 1;
+
+  // 2. Identify Base Price (Handle different DB field names)
+  // Check if your DB uses 'price', 'pricePerDay', or 'rentPerDay'
+  const basePrice = carData.pricePerDay || carData.price || carData.rentPerDay || 2000; 
+
+  console.log(`Calculating Price for: ${carData.brand} | Days: ${noOfDays} | Base: ${basePrice}`);
 
   const mlInputData = {
     brand: carData.brand,
@@ -44,11 +56,28 @@ const getDynamicPrice = async (carData, pickupDate, returnDate, userStartLoc, us
   };
 
   try {
-    const response = await axios.post(FLASK_ML_API_URL, mlInputData);
-    return response.data.predicted_price;
+    // 3. Try AI Prediction
+    console.log(`Attempting AI prediction at: ${FLASK_ML_API_URL}`);
+    
+    // Timeout set to 5 seconds. If Python app is sleeping, this prevents hanging.
+    const response = await axios.post(FLASK_ML_API_URL, mlInputData, { timeout: 5000 }); 
+    
+    if (response.data && response.data.predicted_price) {
+        console.log("AI Price Success:", response.data.predicted_price);
+        return response.data.predicted_price;
+    } else {
+        throw new Error("AI returned empty result");
+    }
+
   } catch (error) {
-    console.error("ML Fallback:", error.message);
-    return carData.pricePerDay * (noOfDays || 1); 
+    // 4. FALLBACK: Standard Math
+    console.error("AI Service Failed (Using Fallback):", error.message);
+    
+    // Simple logic: Base Price * Days
+    const finalFallbackPrice = basePrice * noOfDays;
+    
+    console.log("Fallback Price Calculated:", finalFallbackPrice);
+    return finalFallbackPrice; 
   }
 };
 
@@ -59,47 +88,42 @@ export const generatePrice = async (req, res) => {
   try {
     const { car, pickupDate, returnDate, startLocation, endLocation } = req.body;
     
-    // 'car' is the ID sent from frontend
     const carData = await Car.findById(car).lean();
     if (!carData) return res.json({ success: false, message: "Car not found" });
 
-    const price = await getDynamicPrice(carData, pickupDate, returnDate, startLocation, endLocation);
+    // Calculate Price (AI or Fallback)
+    const calculatedPrice = await getDynamicPrice(carData, pickupDate, returnDate, startLocation, endLocation);
     
-    res.json({ success: true, price });
+    console.log("Final Sent Price:", calculatedPrice);
+
+    // ✅ Sending 'totalPrice' to match your frontend fix
+    res.json({ success: true, totalPrice: calculatedPrice });
   } catch (error) {
-    console.error(error); 
+    console.error("Generate Price Error:", error); 
     res.json({ success: false, message: error.message });
   }
 };
 
 // ----------------------------------------------------------------
-// 4. API: Create Booking (FIXED)
-// ----------------------------------------------------------------
-// ----------------------------------------------------------------
-// 4. API: Create Booking (FIXED: NOW SAVES PHONE)
+// 4. API: Create Booking
 // ----------------------------------------------------------------
 export const createBooking = async (req, res) => {
   try {
-    // ✅ 1. EXTRACT 'phone' from req.body
     const { car, pickupDate, returnDate, startLocation, endLocation, price, phone } = req.body;
     const { _id } = req.user; 
 
-    // Validate inputs
     if (!car || !pickupDate || !returnDate || !phone) {
         return res.json({ success: false, message: "Missing details: Phone, Car, or Dates required." });
     }
 
-    // 2. Check Availability
     const isAvailable = await checkAvailability(car, pickupDate, returnDate);
     if (!isAvailable) {
         return res.json({ success: false, message: "Car not available for these dates" });
     }
 
-    // 3. Get Car Owner Details
     const carData = await Car.findById(car).lean();
     if (!carData) return res.json({ success: false, message: "Car not found in database" });
 
-    // 4. Create the Booking
     await Booking.create({
       car, 
       owner: carData.owner,
@@ -109,7 +133,7 @@ export const createBooking = async (req, res) => {
       startLocation, 
       endLocation,
       price, 
-      phone, // ✅ CRITICAL FIX: Save the phone number here
+      phone, 
       status: "pending" 
     });
 
@@ -130,7 +154,6 @@ export const checkAvailabilityOfCar = async (req, res) => {
         const cars = await Car.find({ location, isAvailable: true });
 
         const availableCars = [];
-        // Renamed variable to avoid confusion
         for (const carItem of cars) { 
             const available = await checkAvailability(carItem._id, pickupDate, returnDate);
             if (available) availableCars.push(carItem);
