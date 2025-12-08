@@ -2,8 +2,7 @@ import Booking from "../models/Booking.js";
 import Car from "../models/Car.js";
 import axios from "axios"; 
 
-// ✅ UPDATED: Points to your Live Python AI Server on Render
-// NOTE: We added '/predict_price' at the end because that is the specific function route
+// ✅ Points to your Live Python AI Server on Render
 const FLASK_ML_API_URL = process.env.FLASK_ML_API_URL || 'https://backend-flask-ml.onrender.com/predict_price';
 
 // ----------------------------------------------------------------
@@ -24,7 +23,7 @@ const checkAvailability = async (carId, pickupDate, returnDate) => {
 };
 
 // ----------------------------------------------------------------
-// 2. HELPER: Get Dynamic Price (ROBUST VERSION)
+// 2. HELPER: Get Dynamic Price (AI + Platform Fee + Intercity Fee)
 // ----------------------------------------------------------------
 const getDynamicPrice = async (carData, pickupDate, returnDate, userStartLoc, userEndLoc) => {
   // 1. Calculate Days
@@ -32,15 +31,14 @@ const getDynamicPrice = async (carData, pickupDate, returnDate, userStartLoc, us
   const returned = new Date(returnDate);
   let noOfDays = Math.ceil((returned - picked) / (1000 * 60 * 60 * 24));
   
-  // Safety: Ensure minimum 1 day
   if (noOfDays <= 0 || isNaN(noOfDays)) noOfDays = 1;
 
-  // 2. Identify Base Price (Handle different DB field names)
-  // Check if your DB uses 'price', 'pricePerDay', or 'rentPerDay'
+  // 2. Identify Base Price
   const basePrice = carData.pricePerDay || carData.price || carData.rentPerDay || 2000; 
 
-  console.log(`Calculating Price for: ${carData.brand} | Days: ${noOfDays} | Base: ${basePrice}`);
+  let calculatedPrice = 0;
 
+  // 3. Try AI Prediction
   const mlInputData = {
     brand: carData.brand,
     year: carData.year,
@@ -56,29 +54,45 @@ const getDynamicPrice = async (carData, pickupDate, returnDate, userStartLoc, us
   };
 
   try {
-    // 3. Try AI Prediction
-    console.log(`Attempting AI prediction at: ${FLASK_ML_API_URL}`);
-    
-    // Timeout set to 5 seconds. If Python app is sleeping, this prevents hanging.
-    const response = await axios.post(FLASK_ML_API_URL, mlInputData, { timeout: 5000 }); 
+    console.log(`Attempting AI prediction...`);
+    const response = await axios.post(FLASK_ML_API_URL, mlInputData, { timeout: 4000 }); 
     
     if (response.data && response.data.predicted_price) {
         console.log("AI Price Success:", response.data.predicted_price);
-        return response.data.predicted_price;
+        calculatedPrice = response.data.predicted_price;
     } else {
-        throw new Error("AI returned empty result");
+        throw new Error("AI result empty");
     }
-
   } catch (error) {
-    // 4. FALLBACK: Standard Math
-    console.error("AI Service Failed (Using Fallback):", error.message);
-    
-    // Simple logic: Base Price * Days
-    const finalFallbackPrice = basePrice * noOfDays;
-    
-    console.log("Fallback Price Calculated:", finalFallbackPrice);
-    return finalFallbackPrice; 
+    console.error("Using Fallback Math:", error.message);
+    // Fallback: Base Price * Days
+    calculatedPrice = basePrice * noOfDays;
   }
+
+  // ---------------------------------------------------------
+  // 4. ADD FEES & ADJUSTMENTS
+  // ---------------------------------------------------------
+  
+  const start = (userStartLoc || "").trim().toLowerCase();
+  const end = (userEndLoc || "").trim().toLowerCase();
+
+  // Rule 1: Intercity Fee (If locations differ)
+  if (start && end && start !== end) {
+      console.log("Different Location Detected! Adding Intercity Fee.");
+      calculatedPrice += 2500; 
+  }
+
+  // Rule 2: Platform/Service Fee (Add ₹200)
+  const PLATFORM_FEE = 200;
+  calculatedPrice += PLATFORM_FEE;
+
+  // Safety: Ensure minimum price is logical (e.g. at least ₹1500 total)
+  if (calculatedPrice < (1500 * noOfDays)) {
+      calculatedPrice = 1500 * noOfDays;
+  }
+
+  console.log("Final Adjusted Price:", calculatedPrice);
+  return Math.round(calculatedPrice); 
 };
 
 // ----------------------------------------------------------------
@@ -91,12 +105,9 @@ export const generatePrice = async (req, res) => {
     const carData = await Car.findById(car).lean();
     if (!carData) return res.json({ success: false, message: "Car not found" });
 
-    // Calculate Price (AI or Fallback)
     const calculatedPrice = await getDynamicPrice(carData, pickupDate, returnDate, startLocation, endLocation);
     
-    console.log("Final Sent Price:", calculatedPrice);
-
-    // ✅ Sending 'totalPrice' to match your frontend fix
+    // ✅ Sending 'totalPrice' to match frontend
     res.json({ success: true, totalPrice: calculatedPrice });
   } catch (error) {
     console.error("Generate Price Error:", error); 
@@ -145,7 +156,7 @@ export const createBooking = async (req, res) => {
 };
 
 // ----------------------------------------------------------------
-// 5. Other API Functions
+// 5. Other API Functions (FULLY RESTORED)
 // ----------------------------------------------------------------
 
 export const checkAvailabilityOfCar = async (req, res) => {
@@ -159,21 +170,27 @@ export const checkAvailabilityOfCar = async (req, res) => {
             if (available) availableCars.push(carItem);
         }
         res.json({ success: true, availableCars });
-    } catch (error) { res.json({ success: false, message: error.message }); }
+    } catch (error) { 
+        res.json({ success: false, message: error.message }); 
+    }
 };
 
 export const getUserBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ user: req.user._id }).populate("car").sort({ createdAt: -1 });
     res.json({ success: true, bookings });
-  } catch (error) { res.json({ success: false, message: error.message }); }
+  } catch (error) { 
+      res.json({ success: false, message: error.message }); 
+  }
 };
 
 export const getOwnerBookings = async (req, res) => {
     try {
       const bookings = await Booking.find({ owner: req.user._id }).populate("car user").sort({ createdAt: -1 });
       res.json({ success: true, bookings });
-    } catch (error) { res.json({ success: false, message: error.message }); }
+    } catch (error) { 
+        res.json({ success: false, message: error.message }); 
+    }
 };
 
 export const changeBookingStatus = async (req, res) => {
@@ -181,7 +198,9 @@ export const changeBookingStatus = async (req, res) => {
       const { bookingId, status } = req.body;
       await Booking.findByIdAndUpdate(bookingId, { status });
       res.json({ success: true, message: "Status Updated" });
-    } catch (error) { res.json({ success: false, message: error.message }); }
+    } catch (error) { 
+        res.json({ success: false, message: error.message }); 
+    }
 };
 
 export const cancelBooking = async (req, res) => {
@@ -189,5 +208,7 @@ export const cancelBooking = async (req, res) => {
         const { id } = req.params;
         await Booking.findByIdAndDelete(id);
         res.json({ success: true, message: "Booking cancelled" });
-    } catch (error) { res.json({ success: false, message: "Server Error" }); }
+    } catch (error) { 
+        res.json({ success: false, message: "Server Error" }); 
+    }
 };
