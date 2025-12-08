@@ -20,10 +20,7 @@ const Navbar = () => {
 
   return (
     <>
-      {/* 1. MAIN NAVBAR (Sticky Header)
-        - z-40: Stays below the Login Modal (z-[9999])
-        - w-full: Full width
-      */}
+      {/* 1. MAIN NAVBAR (Sticky Header) */}
       <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
         <div className="flex items-center justify-between px-4 sm:px-8 lg:px-16 py-3">
           
@@ -48,6 +45,16 @@ const Navbar = () => {
                 {link.name}
               </Link>
             ))}
+
+            {/* ✅ FIXED: Added Dashboard Button for Desktop */}
+            {isOwner && (
+               <button
+                  onClick={() => navigate("/owner")}
+                  className="px-4 py-1.5 text-sm font-semibold text-white bg-gray-800 hover:bg-gray-900 rounded-lg shadow-sm transition-all"
+               >
+                  Dashboard
+               </button>
+            )}
             
             {/* Search Bar */}
             <div className="flex items-center bg-gray-100 rounded-full px-4 py-1.5 border focus-within:border-blue-500 focus-within:bg-white transition-all">
@@ -96,11 +103,7 @@ const Navbar = () => {
         </div>
       </header>
 
-      {/* 2. MOBILE MENU OVERLAY (The Fix)
-        - fixed inset-0: Covers the whole screen, removed from layout flow (Stops Side Scrolling!)
-        - z-50: Sits on top of the navbar
-        - invisible/visible: Hides the container completely when closed so it doesn't take up space
-      */}
+      {/* 2. MOBILE MENU OVERLAY */}
       <div className={`fixed inset-0 z-50 flex justify-end transition-all duration-300 ${open ? "visible opacity-100" : "invisible opacity-0"}`}>
         
         {/* Backdrop (Click to close) */}
@@ -141,6 +144,7 @@ const Navbar = () => {
                 </Link>
               ))}
 
+              {/* Mobile Dashboard Button */}
               {isOwner && (
                  <button
                     onClick={() => { navigate("/owner"); setOpen(false); }}
