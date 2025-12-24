@@ -408,36 +408,7 @@ const CarDetails = () => {
             </button>
           )}
 
-          {/* 🚩 CHANGE 3: Update keys to match Flask response */}
-          {estimatedPriceBreakdown && (
-            <div className="bg-gray-50 p-4 rounded-lg mt-2 text-gray-700 text-sm">
-              <p className="font-semibold mb-1 border-b pb-1">Fare Breakdown</p>
-              {/* Corrected keys from Flask */}
-              <p>Base & Category: ₹{estimatedPriceBreakdown.base_fare_total}</p>
-              <p>Distance Cost: ₹{estimatedPriceBreakdown.distance_cost}</p>
-              <p>
-                Transmission Fee: ₹{estimatedPriceBreakdown.transmission_fee}
-              </p>
-              <p>
-                Surge Factor:{" "}
-                {((estimatedPriceBreakdown.surge_multiplier - 1) * 100).toFixed(
-                  0
-                )}
-                %
-              </p>
-              <p>
-                Long Distance Bonus:{" "}
-                {(
-                  (estimatedPriceBreakdown.long_distance_bonus - 1) *
-                  100
-                ).toFixed(0)}
-                %
-              </p>
-              <p className="font-bold border-t mt-1 pt-1">
-                Platform Fee: ₹{estimatedPriceBreakdown.platform_fee}
-              </p>
-            </div>
-          )}
+    
         </form>
       </div>
     </div>
