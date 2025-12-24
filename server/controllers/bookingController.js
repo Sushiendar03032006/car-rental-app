@@ -3,7 +3,7 @@ import Car from "../models/Car.js";
 import axios from "axios";
 import mongoose from "mongoose";
 
-const FLASK_ML_API_URL = "http://127.0.0.1:5000/predict_price";
+const FLASK_ML_API_URL = "https://backend-flask-ml.onrender.com/";
 
 const formatForFlask = (date) => new Date(date).toISOString().split(".")[0];
 
