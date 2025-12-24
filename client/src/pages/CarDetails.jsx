@@ -15,19 +15,40 @@ const CarDetails = () => {
     setPickupDate,
     returnDate,
     setReturnDate,
-    user, 
+    user,
   } = useAppContext();
 
   const navigate = useNavigate();
   const [car, setCar] = useState(null);
 
   // Form States
-  const [name, setName] = useState(user?.name || ""); 
+  const [name, setName] = useState(user?.name || "");
   const [phone, setPhone] = useState("");
   const [startLocation, setStartLocation] = useState("");
   const [endLocation, setEndLocation] = useState("");
   const [estimatedPrice, setEstimatedPrice] = useState(null);
-  const [loadingPrice, setLoadingPrice] = useState(false); 
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [estimatedPriceBreakdown, setEstimatedPriceBreakdown] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    if (!searchTerm) return;
+
+    const timer = setTimeout(() => {
+      searchLocation(searchTerm, setStartLocation);
+    }, 500); // wait 0.5s after typing stops
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (estimatedPrice) {
+      const priceSection = document.getElementById("price-section");
+      priceSection?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [estimatedPrice]);
 
   // ----------------------------------------------------------------
   // 1. Fetch Car Data
@@ -42,20 +63,20 @@ const CarDetails = () => {
 
         if (foundCar) {
           setCar(foundCar);
-          setStartLocation(foundCar.location); 
-          return; 
+          setStartLocation(foundCar.location);
+          return;
         }
       }
 
       try {
         const { data } = await axios.get(`/api/user/cars`);
         if (data.success) {
-           const found = data.cars.find(c => c._id === id || c.id === id);
-           if (found) setCar(found);
-           else {
-             toast.error("Car not found.");
-             navigate("/");
-           }
+          const found = data.cars.find((c) => c._id === id || c.id === id);
+          if (found) setCar(found);
+          else {
+            toast.error("Car not found.");
+            navigate("/");
+          }
         }
       } catch (error) {
         console.error("Error fetching car:", error);
@@ -65,55 +86,66 @@ const CarDetails = () => {
 
     fetchCarData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, cars]); 
+  }, [id, cars]);
+
+  const searchLocation = async (query, setter) => {
+    if (!query) return;
+
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${query}`
+      );
+      const data = await res.json();
+
+      if (data.length > 0) {
+        setter(data[0].display_name);
+      }
+    } catch (err) {
+      toast.error("Location search failed");
+    }
+  };
 
   // ----------------------------------------------------------------
   // 2. Generate Price (FIXED SECTION)
   // ----------------------------------------------------------------
   const handleGeneratePrice = async () => {
-    if (!car) return;
-
     if (!pickupDate || !returnDate)
-      return toast.error("Please select pickup and return dates first.");
+      return toast.error("Select pickup and return dates");
 
     if (!startLocation || !endLocation)
-      return toast.error("Please enter start & end locations.");
+      return toast.error("Enter start and end locations");
 
-    setLoadingPrice(true); 
+    if (new Date(returnDate) < new Date(pickupDate)) {
+      return toast.error("Return date must be after pickup date");
+    }
 
+    setLoadingPrice(true);
     try {
-      const payload = {
-        car: car._id, 
+      const { data } = await axios.post("/api/bookings/generate-price", {
+        car: id,
         pickupDate,
         returnDate,
-        startLocation, 
-        endLocation 
-      };
-
-      console.log("Sending Payload:", payload); // Debugging
-
-      const { data } = await axios.post("/api/bookings/generate-price", payload);
-
-      console.log("API Response:", data); // Check your console to see the real data!
+        startLocation,
+        endLocation,
+      });
 
       if (data.success) {
-        // ✅ FIX: Check for multiple possible names (totalPrice, price, total_price)
-        const finalPrice = data.totalPrice || data.price || data.total_price;
-        
-        if (finalPrice) {
-            setEstimatedPrice(finalPrice);
-            toast.success("Dynamic Price Calculated!");
-        } else {
-            toast.error("Price calculated but value is missing. Check Console.");
-        }
+        console.log(
+          "PRICE RECEIVED FROM BACKEND:",
+          data.totalPrice,
+          data.breakdown
+        );
+        setEstimatedPrice(data.totalPrice);
+        setEstimatedPriceBreakdown(data.breakdown || null);
       } else {
-        toast.error(data.message || "Failed to calculate price");
+        toast.error(data.message || "Price calculation failed");
+        setEstimatedPrice(null);
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Price calculation failed. Check server.");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Price calculation failed");
+      setEstimatedPrice(null);
     } finally {
-      setLoadingPrice(false); 
+      setLoadingPrice(false);
     }
   };
 
@@ -123,17 +155,22 @@ const CarDetails = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if(!user) {
-        return toast.error("You must be logged in to book a car.");
+    if (submitting) return;
+    setSubmitting(true);
+
+    if (!user) {
+      setSubmitting(false);
+      return toast.error("Login required");
     }
 
-    if (!estimatedPrice)
-      return toast.error("Please generate price before booking.");
+    if (!estimatedPrice) {
+      setSubmitting(false);
+      return toast.error("Generate price first");
+    }
 
     try {
       const { data } = await axios.post("/api/bookings/create", {
         car: id,
-        name,
         phone,
         pickupDate,
         returnDate,
@@ -144,23 +181,20 @@ const CarDetails = () => {
 
       if (data.success) {
         toast.success(data.message);
-
-        // Reset Form
-        setPickupDate("");
-        setReturnDate("");
-        setName("");
-        setPhone("");
-        setStartLocation("");
-        setEndLocation("");
-        setEstimatedPrice(null);
-
         navigate("/my-bookings");
       } else {
         toast.error(data.message);
+        setEstimatedPrice(null); // force re-check
       }
     } catch (error) {
-      console.error(error);
-      toast.error(error.response?.data?.message || error.message);
+      if (error.response?.status === 409) {
+        toast.error("Car already booked for these dates");
+        setEstimatedPrice(null);
+      } else {
+        toast.error("Booking failed");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -235,7 +269,9 @@ const CarDetails = () => {
           <hr className="border-borderColor my-4" />
 
           <div>
-            <label className="text-xs font-bold text-gray-500 uppercase">Full Name</label>
+            <label className="text-xs font-bold text-gray-500 uppercase">
+              Full Name
+            </label>
             <input
               type="text"
               value={name}
@@ -246,7 +282,9 @@ const CarDetails = () => {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-gray-500 uppercase">Phone Number</label>
+            <label className="text-xs font-bold text-gray-500 uppercase">
+              Phone Number
+            </label>
             <input
               type="tel"
               value={phone}
@@ -258,86 +296,148 @@ const CarDetails = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Start Location</label>
-                <input
+              <label className="text-xs font-bold text-gray-500 uppercase">
+                Start Location
+              </label>
+              <input
                 type="text"
                 value={startLocation}
-                onChange={(e) => setStartLocation(e.target.value)}
-                className="border px-3 py-2 rounded-lg w-full mt-1 focus:outline-blue-500"
+                onChange={(e) => {
+                  setStartLocation(e.target.value);
+                }}
+                className="border px-3 py-2 rounded-lg w-full mt-1"
                 required
-                />
+              />
             </div>
             <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">End Location</label>
-                <input
+              <label className="text-xs font-bold text-gray-500 uppercase">
+                End Location
+              </label>
+              <input
                 type="text"
                 value={endLocation}
-                onChange={(e) => setEndLocation(e.target.value)}
-                className="border px-3 py-2 rounded-lg w-full mt-1 focus:outline-blue-500"
+                onChange={(e) => {
+                  setEndLocation(e.target.value);
+                }}
+                className="border px-3 py-2 rounded-lg w-full mt-1"
                 required
-                />
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Pickup Date</label>
-                <input
+              <label className="text-xs font-bold text-gray-500 uppercase">
+                Pickup Date
+              </label>
+              <input
                 type="date"
                 value={pickupDate}
                 min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setPickupDate(e.target.value)}
                 className="border px-3 py-2 rounded-lg w-full mt-1 focus:outline-blue-500"
                 required
-                />
+              />
             </div>
             <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Return Date</label>
-                <input
+              <label className="text-xs font-bold text-gray-500 uppercase">
+                Return Date
+              </label>
+              <input
                 type="date"
                 value={returnDate}
                 min={pickupDate}
                 onChange={(e) => setReturnDate(e.target.value)}
                 className="border px-3 py-2 rounded-lg w-full mt-1 focus:outline-blue-500"
                 required
-                />
+              />
             </div>
           </div>
 
           {/* PRICE CALCULATION SECTION */}
-          {estimatedPrice ? (
-            <div className="text-center bg-blue-50 border border-blue-100 py-4 rounded-lg animate-fade-in">
-              <p className="text-sm text-blue-600 font-medium">Total Dynamic Price</p>
+          {loadingPrice ? (
+            <div className="text-center p-4 bg-blue-50 animate-pulse rounded-lg">
+              <p className="text-blue-600 font-medium">
+                Fetching Intercity Rates...
+              </p>
+            </div>
+          ) : estimatedPrice ? (
+            <div
+              id="price-section"
+              className="text-center bg-blue-50 border border-blue-100 py-4 rounded-lg animate-fade-in"
+            >
+              <p className="text-sm text-blue-600 font-medium">
+                Total Dynamic Price
+              </p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
                 ₹{estimatedPrice}
               </p>
-              <p className="text-xs text-gray-400 mt-1">Based on demand & distance</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Based on demand & distance
+              </p>
             </div>
           ) : (
             <button
-                type="button"
-                onClick={handleGeneratePrice}
-                disabled={loadingPrice}
-                className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                    loadingPrice 
-                    ? "bg-gray-300 cursor-not-allowed text-gray-500" 
-                    : "bg-gray-800 hover:bg-gray-900 text-white"
-                }`}
+              type="button"
+              onClick={handleGeneratePrice}
+              disabled={
+                loadingPrice ||
+                !startLocation ||
+                !endLocation ||
+                !pickupDate ||
+                !returnDate
+              }
+              className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                loadingPrice
+                  ? "bg-gray-300 cursor-not-allowed text-gray-500"
+                  : "bg-gray-800 hover:bg-gray-900 text-white"
+              }`}
             >
-                {loadingPrice ? "Calculating Best Price..." : "Calculate Price"}
+              {loadingPrice ? "Calculating Best Price..." : "Calculate Price"}
             </button>
           )}
 
           {/* FINAL BOOKING BUTTON (Only show if price is generated) */}
-          {estimatedPrice && (
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 transition-colors py-3 rounded-xl font-bold text-white shadow-md mt-2"
-              >
-                Confirm Booking
-              </button>
+          {estimatedPrice && !loadingPrice && (
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-blue-600 hover:bg-blue-700 transition-colors py-3 rounded-xl font-bold text-white shadow-md mt-2"
+            >
+              {submitting ? "Booking..." : "Confirm Booking"}
+            </button>
           )}
 
+          {/* 🚩 CHANGE 3: Update keys to match Flask response */}
+          {estimatedPriceBreakdown && (
+            <div className="bg-gray-50 p-4 rounded-lg mt-2 text-gray-700 text-sm">
+              <p className="font-semibold mb-1 border-b pb-1">Fare Breakdown</p>
+              {/* Corrected keys from Flask */}
+              <p>Base & Category: ₹{estimatedPriceBreakdown.base_fare_total}</p>
+              <p>Distance Cost: ₹{estimatedPriceBreakdown.distance_cost}</p>
+              <p>
+                Transmission Fee: ₹{estimatedPriceBreakdown.transmission_fee}
+              </p>
+              <p>
+                Surge Factor:{" "}
+                {((estimatedPriceBreakdown.surge_multiplier - 1) * 100).toFixed(
+                  0
+                )}
+                %
+              </p>
+              <p>
+                Long Distance Bonus:{" "}
+                {(
+                  (estimatedPriceBreakdown.long_distance_bonus - 1) *
+                  100
+                ).toFixed(0)}
+                %
+              </p>
+              <p className="font-bold border-t mt-1 pt-1">
+                Platform Fee: ₹{estimatedPriceBreakdown.platform_fee}
+              </p>
+            </div>
+          )}
         </form>
       </div>
     </div>

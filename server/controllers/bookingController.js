@@ -1,214 +1,269 @@
-import Booking from "../models/Booking.js"; 
+import Booking from "../models/Booking.js";
 import Car from "../models/Car.js";
-import axios from "axios"; 
+import axios from "axios";
+import mongoose from "mongoose";
 
-// ✅ Points to your Live Python AI Server on Render
-const FLASK_ML_API_URL = process.env.FLASK_ML_API_URL || 'https://backend-flask-ml.onrender.com/predict_price';
+const FLASK_ML_API_URL = "http://127.0.0.1:5000/predict_price";
+
+const formatForFlask = (date) => new Date(date).toISOString().split(".")[0];
+
+// ------------------ DATE NORMALIZER ------------------
+const normalizeDateRange = (pickupDate, returnDate) => {
+  const startUTC = new Date(pickupDate);
+  startUTC.setUTCHours(0, 0, 0, 0);
+
+  const endUTC = new Date(returnDate);
+  endUTC.setUTCHours(23, 59, 59, 999);
+
+  return { startUTC, endUTC };
+};
 
 // ----------------------------------------------------------------
-// 1. HELPER: Check Availability
+// 1. HELPER: Strict Check Availability (Unified Logic)
 // ----------------------------------------------------------------
-const checkAvailability = async (carId, pickupDate, returnDate) => {
-  const start = new Date(pickupDate);
-  const end = new Date(returnDate);
+export const checkAvailability = async (carId, pickupDate, returnDate) => {
+  const { startUTC, endUTC } = normalizeDateRange(pickupDate, returnDate);
 
-  const bookings = await Booking.find({
-    car: carId, 
-    status: "confirmed", 
-    $or: [
-       { pickupDate: { $lte: end }, returnDate: { $gte: start } }
-    ]
+  // MISTAKE FIX: Added status check to block BOTH confirmed and pending
+  // Blocks any new booking if there is a non-cancelled overlap
+  const conflictingBooking = await Booking.findOne({
+    car: carId,
+    status: { $ne: "cancelled" }, // Prevents multiple pending overlaps
+    pickupDate: { $lte: endUTC }, // Existing starts before new ends
+    returnDate: { $gte: startUTC }, // Existing ends after new starts
   });
-  return bookings.length === 0;
+
+  return conflictingBooking === null;
 };
 
-// ----------------------------------------------------------------
-// 2. HELPER: Get Dynamic Price (AI + Platform Fee + Intercity Fee)
-// ----------------------------------------------------------------
-const getDynamicPrice = async (carData, pickupDate, returnDate, userStartLoc, userEndLoc) => {
-  // 1. Calculate Days
-  const picked = new Date(pickupDate);
-  const returned = new Date(returnDate);
-  let noOfDays = Math.ceil((returned - picked) / (1000 * 60 * 60 * 24));
-  
-  if (noOfDays <= 0 || isNaN(noOfDays)) noOfDays = 1;
+// ------------------ PRICE FROM FLASK ------------------
+// --- bookingController.js ---
 
-  // 2. Identify Base Price
-  const basePrice = carData.pricePerDay || carData.price || carData.rentPerDay || 2000; 
-
-  let calculatedPrice = 0;
-
-  // 3. Try AI Prediction
-  const mlInputData = {
-    brand: carData.brand,
-    year: carData.year,
-    category: carData.category,
-    seatingCapacity: carData.seating_capacity, 
-    fuelType: carData.fuel_type,
-    transmission: carData.transmission,
-    startLocation: userStartLoc || carData.location,
-    dropLocation: userEndLoc || carData.location, 
-    startDate: pickupDate,
-    endDate: returnDate,
-    demandFactor: "medium"
-  };
-
+// bookingController.js
+// --- In bookingController.js ---
+export const getDynamicPrice = async (
+  carData,
+  pickupDate,
+  returnDate,
+  startLocation,
+  endLocation
+) => {
   try {
-    console.log(`Attempting AI prediction...`);
-    const response = await axios.post(FLASK_ML_API_URL, mlInputData, { timeout: 4000 }); 
-    
-    if (response.data && response.data.predicted_price) {
-        console.log("AI Price Success:", response.data.predicted_price);
-        calculatedPrice = response.data.predicted_price;
-    } else {
-        throw new Error("AI result empty");
+    const response = await axios.post(FLASK_ML_API_URL, {
+      category: carData.category,
+      transmission: carData.transmission,
+      startDate: formatForFlask(pickupDate),
+      endDate: formatForFlask(returnDate),
+      startLocation: startLocation.trim(),
+      endLocation: endLocation.trim(),
+    });
+
+    if (response.data?.success) {
+      const predictedPrice = response.data.predicted_price;
+
+     
+
+      return {
+        totalPrice:predictedPrice,
+        breakdown:response.data.breakdown,
+      };
     }
+
+    throw new Error("Flask returned failure");
   } catch (error) {
-    console.error("Using Fallback Math:", error.message);
-    // Fallback: Base Price * Days
-    calculatedPrice = basePrice * noOfDays;
+    console.error("❌ FLASK ERROR:", error.message);
+    throw new Error("Dynamic pricing service unavailable");
   }
-
-  // ---------------------------------------------------------
-  // 4. ADD FEES & ADJUSTMENTS
-  // ---------------------------------------------------------
-  
-  const start = (userStartLoc || "").trim().toLowerCase();
-  const end = (userEndLoc || "").trim().toLowerCase();
-
-  // Rule 1: Intercity Fee (If locations differ)
-  if (start && end && start !== end) {
-      console.log("Different Location Detected! Adding Intercity Fee.");
-      calculatedPrice += 2500; 
-  }
-
-  // Rule 2: Platform/Service Fee (Add ₹200)
-  const PLATFORM_FEE = 200;
-  calculatedPrice += PLATFORM_FEE;
-
-  // Safety: Ensure minimum price is logical (e.g. at least ₹1500 total)
-  if (calculatedPrice < (1500 * noOfDays)) {
-      calculatedPrice = 1500 * noOfDays;
-  }
-
-  console.log("Final Adjusted Price:", calculatedPrice);
-  return Math.round(calculatedPrice); 
 };
 
-// ----------------------------------------------------------------
-// 3. API: Generate Price
-// ----------------------------------------------------------------
+// if (
+//   startLocation &&
+//   endLocation &&
+//   startLocation.toLowerCase() !== endLocation.toLowerCase()
+// ) {
+//   price += 1500;
+// }
+
+// ------------------ GENERATE PRICE API ------------------
+// Change this in bookingController.js
 export const generatePrice = async (req, res) => {
   try {
-    const { car, pickupDate, returnDate, startLocation, endLocation } = req.body;
-    
-    const carData = await Car.findById(car).lean();
-    if (!carData) return res.json({ success: false, message: "Car not found" });
+    let { car, pickupDate, returnDate, startLocation, endLocation } = req.body;
 
-    const calculatedPrice = await getDynamicPrice(carData, pickupDate, returnDate, startLocation, endLocation);
-    
-    // ✅ Sending 'totalPrice' to match frontend
-    res.json({ success: true, totalPrice: calculatedPrice });
+    if (!startLocation || !endLocation) {
+      return res.status(400).json({
+        success: false,
+        message: "Start and End locations are required",
+      });
+    }
+
+    startLocation = startLocation.trim();
+    endLocation = endLocation.trim();
+
+    const carData = await Car.findById(car).lean();
+    if (!carData)
+      return res
+        .status(404)
+        .json({ success: false, message: "Car not found in Database" });
+
+    // getDynamicPrice should return { totalPrice, breakdown }
+    const priceData = await getDynamicPrice(
+      carData,
+      pickupDate,
+      returnDate,
+      startLocation,
+      endLocation
+    );
+
+    res.json({
+      success: true,
+      totalPrice: priceData.totalPrice,
+      breakdown: priceData.breakdown,
+    });
   } catch (error) {
-    console.error("Generate Price Error:", error); 
+    res.status(503).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// --------------------------------------------------
+// CREATE BOOKING (ATOMIC + NO OVERLAP)
+// --------------------------------------------------
+// --- In bookingController.js ---
+export const createBooking = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { car, pickupDate, returnDate, startLocation, endLocation, phone } = req.body;
+    const userId = req.user._id;
+
+    const { startUTC, endUTC } = normalizeDateRange(pickupDate, returnDate);
+
+    // 🔒 ATOMIC OVERLAP CHECK
+    const conflict = await Booking.findOne(
+      {
+        car,
+        status: { $in: ["pending", "confirmed"] },
+        pickupDate: { $lt: endUTC },
+        returnDate: { $gt: startUTC },
+      },
+      null,
+      { session }
+    );
+
+    if (conflict) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(409).json({ success: false, message: "Car already booked." });
+    }
+
+    const carData = await Car.findById(car).session(session).lean();
+    if (!carData) throw new Error("Car not found");
+
+    // 🚩 CHANGE 1: Get the object from Flask
+    const priceData = await getDynamicPrice(
+      carData,
+      pickupDate,
+      returnDate,
+      startLocation.trim(),
+      endLocation.trim()
+    );
+
+    // 🚩 CHANGE 2: Store only the numeric total in the 'price' field
+    await Booking.create(
+      [
+        {
+          car,
+          owner: carData.owner,
+          user: userId,
+          pickupDate: startUTC,
+          returnDate: endUTC,
+          startLocation,
+          endLocation,
+          phone,
+          price: priceData.totalPrice, // <--- FIX: Store the number, not the object
+          status: "pending",
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({ success: true, message: "Booking request sent!" });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ success: false, message: "Booking failed" });
+  }
+};
+
+export const checkAvailabilityOfCar = async (req, res) => {
+  try {
+    const { location, pickupDate, returnDate } = req.body;
+    const cars = await Car.find({ location, isAvailable: true });
+
+    const availableCars = [];
+    for (const carItem of cars) {
+      const available = await checkAvailability(
+        carItem._id,
+        pickupDate,
+        returnDate
+      );
+      if (available) availableCars.push(carItem);
+    }
+    res.json({ success: true, availableCars });
+  } catch (error) {
     res.json({ success: false, message: error.message });
   }
 };
 
-// ----------------------------------------------------------------
-// 4. API: Create Booking
-// ----------------------------------------------------------------
-export const createBooking = async (req, res) => {
-  try {
-    const { car, pickupDate, returnDate, startLocation, endLocation, price, phone } = req.body;
-    const { _id } = req.user; 
-
-    if (!car || !pickupDate || !returnDate || !phone) {
-        return res.json({ success: false, message: "Missing details: Phone, Car, or Dates required." });
-    }
-
-    const isAvailable = await checkAvailability(car, pickupDate, returnDate);
-    if (!isAvailable) {
-        return res.json({ success: false, message: "Car not available for these dates" });
-    }
-
-    const carData = await Car.findById(car).lean();
-    if (!carData) return res.json({ success: false, message: "Car not found in database" });
-
-    await Booking.create({
-      car, 
-      owner: carData.owner,
-      user: _id,
-      pickupDate: new Date(pickupDate),
-      returnDate: new Date(returnDate),
-      startLocation, 
-      endLocation,
-      price, 
-      phone, 
-      status: "pending" 
-    });
-
-    res.json({ success: true, message: "Booking Request Sent! Waiting for Owner." });
-  } catch (error) {
-    console.error("Create Booking Error:", error); 
-    res.json({ success: false, message: error.message }); 
-  }
-};
-
-// ----------------------------------------------------------------
-// 5. Other API Functions (FULLY RESTORED)
-// ----------------------------------------------------------------
-
-export const checkAvailabilityOfCar = async (req, res) => {
-    try {
-        const { location, pickupDate, returnDate } = req.body;
-        const cars = await Car.find({ location, isAvailable: true });
-
-        const availableCars = [];
-        for (const carItem of cars) { 
-            const available = await checkAvailability(carItem._id, pickupDate, returnDate);
-            if (available) availableCars.push(carItem);
-        }
-        res.json({ success: true, availableCars });
-    } catch (error) { 
-        res.json({ success: false, message: error.message }); 
-    }
-};
-
 export const getUserBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.user._id }).populate("car").sort({ createdAt: -1 });
+    const bookings = await Booking.find({ user: req.user._id })
+      .populate("car")
+      .sort({ createdAt: -1 });
     res.json({ success: true, bookings });
-  } catch (error) { 
-      res.json({ success: false, message: error.message }); 
+  } catch (error) {
+    res.json({ success: false, message: error.message });
   }
 };
 
 export const getOwnerBookings = async (req, res) => {
-    try {
-      const bookings = await Booking.find({ owner: req.user._id }).populate("car user").sort({ createdAt: -1 });
-      res.json({ success: true, bookings });
-    } catch (error) { 
-        res.json({ success: false, message: error.message }); 
-    }
+  try {
+    const bookings = await Booking.find({ owner: req.user._id })
+      .populate("car user")
+      .sort({ createdAt: -1 });
+    res.json({ success: true, bookings });
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
 };
 
 export const changeBookingStatus = async (req, res) => {
-    try {
-      const { bookingId, status } = req.body;
-      await Booking.findByIdAndUpdate(bookingId, { status });
-      res.json({ success: true, message: "Status Updated" });
-    } catch (error) { 
-        res.json({ success: false, message: error.message }); 
-    }
+  try {
+    const { bookingId, status } = req.body;
+    await Booking.findByIdAndUpdate(bookingId, { status });
+    res.json({ success: true, message: "Status Updated" });
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
 };
 
+// --------------------------------------------------
+// CANCEL BOOKING (SAFE)
+// --------------------------------------------------
 export const cancelBooking = async (req, res) => {
-    try {
-        const { id } = req.params;
-        await Booking.findByIdAndDelete(id);
-        res.json({ success: true, message: "Booking cancelled" });
-    } catch (error) { 
-        res.json({ success: false, message: "Server Error" }); 
-    }
+  try {
+    await Booking.findByIdAndUpdate(req.params.id, {
+      status: "cancelled",
+    });
+    res.json({ success: true, message: "Booking cancelled" });
+  } catch {
+    res.json({ success: false, message: "Server error" });
+  }
 };
