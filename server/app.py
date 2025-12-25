@@ -9,24 +9,18 @@ CORS(app)
 
 # ---------------- CONFIGURATION ----------------
 
-# Base pricing
 BASE_FARE_PER_DAY = 350
 DISTANCE_RATE_PER_KM = 24
 PLATFORM_FEE = 100
 MINIMUM_DISTANCE = 5.0
 
-# Intracity
 INTRACITY_BASE = 180
 INTRACITY_PER_KM = 18
 INTRACITY_MAX_KM = 40
 
-# Express
 EXPRESS_BUFFER = 1.35
-
-# Intercity
 INTERCITY_PER_KM = 22
 
-# Category multiplier
 CATEGORY_MULTIPLIER = {
     "Hatchback": 1.5,
     "Sedan": 1.9,
@@ -78,7 +72,10 @@ def get_distance(start, end):
         return 75.0
 
     try:
-        osrm = f"http://router.project-osrm.org/route/v1/driving/{c1[1]},{c1[0]};{c2[1]},{c2[0]}?overview=false"
+        osrm = (
+            f"http://router.project-osrm.org/route/v1/driving/"
+            f"{c1[1]},{c1[0]};{c2[1]},{c2[0]}?overview=false"
+        )
         res = requests.get(osrm, timeout=5).json()
         if "routes" in res:
             return round(res["routes"][0]["distance"] / 1000, 2)
@@ -95,21 +92,30 @@ def classify_ride(distance_km, days):
     else:
         return "INTERCITY"
 
+# ---------------- HEALTH CHECK ----------------
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
+
 # ---------------- MAIN API ----------------
+# IMPORTANT: POST ONLY
 
-@app.route("/predict_price", methods=["POST"])
-def predict_price():
+@app.route("/api/bookings/generate-price", methods=["POST"])
+def generate_price():
     try:
-        data = request.get_json()
+        data = request.get_json(force=True)
 
-        # Distance
-        raw_distance = get_distance(data["startLocation"], data["endLocation"])
+        raw_distance = get_distance(
+            data["startLocation"], data["endLocation"]
+        )
         distance_km = max(raw_distance, MINIMUM_DISTANCE)
 
-        # Duration
         start_dt = datetime.fromisoformat(data["startDate"])
         end_dt = datetime.fromisoformat(data["endDate"])
-        days = max(math.ceil((end_dt - start_dt).total_seconds() / 86400), 1)
+        days = max(
+            math.ceil((end_dt - start_dt).total_seconds() / 86400), 1
+        )
 
         ride_type = classify_ride(distance_km, days)
 
@@ -119,9 +125,12 @@ def predict_price():
         cat_mult = CATEGORY_MULTIPLIER.get(category, 1.0)
         trans_fee = TRANSMISSION_SURCHARGE.get(transmission, 0)
 
-        surge = 1.25 if (8 <= start_dt.hour <= 10 or 17 <= start_dt.hour <= 21) else 1.0
+        surge = (
+            1.25
+            if (8 <= start_dt.hour <= 10 or 17 <= start_dt.hour <= 21)
+            else 1.0
+        )
 
-        # Pricing Logic
         if ride_type == "INTRACITY":
             billable_km = min(distance_km, INTRACITY_MAX_KM)
             base = INTRACITY_BASE * cat_mult
@@ -160,9 +169,12 @@ def predict_price():
         })
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 400
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
 
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000, threaded=True)
+    app.run(host="0.0.0.0", port=5000)
