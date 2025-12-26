@@ -41,9 +41,9 @@ const Footer = () => {
               <span className="text-xl font-bold text-gray-800">DriveNow</span>
             </div>
             <p className="text-sm leading-relaxed max-w-sm mb-6">
-              Premium car rental service offering a wide selection of luxury and 
-              everyday vehicles. Experience the freedom of the road with transparent 
-              pricing and 24/7 support across South India.
+              We're a local car rental and taxi service helping people travel comfortably for daily rides, 
+              airport transfers, and outstation trips. We focus on fair pricing, well-maintained cars, 
+              and 24/7 support across South India.
             </p>
             <div className="flex gap-4">
               <a href="#" className="opacity-70 hover:opacity-100 transition"><img src={assets.facebook_logo} className="w-5 h-5" alt="FB"/></a>

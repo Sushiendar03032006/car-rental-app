@@ -29,7 +29,7 @@ const Hero = () => {
   return (
     <div className='h-screen flex flex-col items-center justify-center gap-14 bg-blue-50 text-center px-4'>
       {/* Heading */}
-      <h1 className='text-4xl md:text-5xl font-semibold'>Luxury cars on Rent</h1>
+      <h1 className='text-2xl md:text-4xl font-semibold'>Premium rides, seamless journeys—ride in style, every time</h1>
 
       {/* Form */}
       <form

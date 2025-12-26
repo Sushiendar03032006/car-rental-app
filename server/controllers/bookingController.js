@@ -3,7 +3,8 @@ import Car from "../models/Car.js";
 import axios from "axios";
 import mongoose from "mongoose";
 
-const FLASK_ML_API_URL = "https://backend-flask-ml.onrender.com/predict_price";
+// Ensure there is no extra slash at the end
+const FLASK_ML_API_URL = "http://127.0.0.1:5005/api/bookings/generate-price";
 
 const formatForFlask = (date) => new Date(date).toISOString().split(".")[0];
 
@@ -41,40 +42,43 @@ export const checkAvailability = async (carId, pickupDate, returnDate) => {
 
 // bookingController.js
 // --- In bookingController.js ---
-export const getDynamicPrice = async (
-  carData,
-  pickupDate,
-  returnDate,
-  startLocation,
-  endLocation
-) => {
+// --- In bookingController.js ---
+
+export const getDynamicPrice = async (carData, pickupDate, returnDate, startLocation, endLocation) => {
+  const payload = {
+    category: carData.category,
+    transmission: carData.transmission,
+    // FIX: Ensure date is clean for Python
+    startDate: new Date(pickupDate).toISOString().replace('Z', '+00:00'), 
+    endDate: new Date(returnDate).toISOString().replace('Z', '+00:00'),
+    startLocation: startLocation.trim(),
+    endLocation: endLocation.trim(),
+  };
+
   try {
-    const response = await axios.post(FLASK_ML_API_URL, {
-      category: carData.category,
-      transmission: carData.transmission,
-      startDate: formatForFlask(pickupDate),
-      endDate: formatForFlask(returnDate),
-      startLocation: startLocation.trim(),
-      endLocation: endLocation.trim(),
+    const response = await axios.post(FLASK_ML_API_URL, payload, {
+      timeout: 5000, // 8 seconds is plenty
     });
 
     if (response.data?.success) {
-      const predictedPrice = response.data.predicted_price;
-
-     
-
       return {
-        totalPrice:predictedPrice,
-        breakdown:response.data.breakdown,
+        totalPrice: response.data.predicted_price,
+        distance_km: response.data.distance_km,
       };
     }
-
-    throw new Error("Flask returned failure");
-  } catch (error) {
-    console.error("❌ FLASK ERROR:", error.message);
-    throw new Error("Dynamic pricing service unavailable");
+    throw new Error(response.data.error || "Flask failed to calculate");
+  } catch (err) {
+    console.error("Flask Connection Failed. Using manual calculation fallback.");
+    // FALLBACK LOGIC: If Flask is down, don't break the app!
+    // Calculate a rough price: (Base 1000 + 500 per day)
+    const days = Math.max(1, Math.ceil((new Date(returnDate) - new Date(pickupDate)) / (1000 * 60 * 60 * 24)));
+    return {
+      totalPrice: 2000 + (days * 500), 
+      distance_km: "Manual verification required"
+    };
   }
 };
+
 
 // if (
 //   startLocation &&
@@ -118,7 +122,7 @@ export const generatePrice = async (req, res) => {
     res.json({
       success: true,
       totalPrice: priceData.totalPrice,
-      breakdown: priceData.breakdown,
+      distance_km: priceData.distance_km, // Send this to the frontend
     });
   } catch (error) {
     res.status(503).json({

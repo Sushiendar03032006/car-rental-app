@@ -108,46 +108,35 @@ const CarDetails = () => {
   // ----------------------------------------------------------------
   // 2. Generate Price (FIXED SECTION)
   // ----------------------------------------------------------------
-  const handleGeneratePrice = async () => {
-    if (!pickupDate || !returnDate)
-      return toast.error("Select pickup and return dates");
+  // --- In CarDetails.jsx ---
 
-    if (!startLocation || !endLocation)
-      return toast.error("Enter start and end locations");
+const handleGeneratePrice = async () => {
+  if (!pickupDate || !returnDate) return toast.error("Select pickup and return dates");
+  if (!startLocation || !endLocation) return toast.error("Please enter both locations");
 
-    if (new Date(returnDate) < new Date(pickupDate)) {
-      return toast.error("Return date must be after pickup date");
+  setLoadingPrice(true);
+  
+  try {
+    const { data } = await axios.post("/api/bookings/generate-price", {
+      car: id,
+      startLocation,
+      endLocation,
+      pickupDate,
+      returnDate,
+    });
+
+    if (data.success) {
+      setEstimatedPrice(data.totalPrice);
+      setEstimatedPriceBreakdown(data.distance_km);
     }
-
-    setLoadingPrice(true);
-    try {
-      const { data } = await axios.post("/api/bookings/generate-price", {
-        car: id,
-        pickupDate,
-        returnDate,
-        startLocation,
-        endLocation,
-      });
-
-      if (data.success) {
-        console.log(
-          "PRICE RECEIVED FROM BACKEND:",
-          data.totalPrice,
-          data.breakdown
-        );
-        setEstimatedPrice(data.totalPrice);
-        setEstimatedPriceBreakdown(data.breakdown || null);
-      } else {
-        toast.error(data.message || "Price calculation failed");
-        setEstimatedPrice(null);
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Price calculation failed");
-      setEstimatedPrice(null);
-    } finally {
-      setLoadingPrice(false);
-    }
-  };
+  } catch (err) {
+    const errorMsg = err.response?.data?.message || "Pricing service is starting up. Please try again in a moment.";
+    toast.error(errorMsg);
+    console.error(err);
+  } finally {
+    setLoadingPrice(false);
+  }
+};
 
   // ----------------------------------------------------------------
   // 3. Submit Booking
@@ -372,8 +361,16 @@ const CarDetails = () => {
               <p className="text-3xl font-bold text-gray-900 mt-1">
                 ₹{estimatedPrice}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
-                Based on demand & distance
+
+              {/* NEW: Show the distance here */}
+              {estimatedPriceBreakdown && (
+                <p className="text-xs text-blue-500 font-semibold mt-1">
+                  Estimated Distance: {estimatedPriceBreakdown} km
+                </p>
+              )}
+
+              <p className="text-[10px] text-gray-400 mt-1">
+                Price includes platform fees and base fare
               </p>
             </div>
           ) : (
@@ -407,8 +404,6 @@ const CarDetails = () => {
               {submitting ? "Booking..." : "Confirm Booking"}
             </button>
           )}
-
-    
         </form>
       </div>
     </div>
