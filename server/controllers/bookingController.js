@@ -62,7 +62,7 @@ export const getDynamicPrice = async (carData, pickupDate, returnDate, startLoca
   };
 
   try {
-    const response = await axios.post(process.env.FLASK_ML_API_URL, payload, {
+    const response = await axios.post(FLASK_ML_API_URL, payload, {
       timeout: 5000, // 8 seconds is plenty
     });
 
@@ -267,13 +267,21 @@ export const changeBookingStatus = async (req, res) => {
 // --------------------------------------------------
 // CANCEL BOOKING (SAFE)
 // --------------------------------------------------
+// --------------------------------------------------
+// CANCEL BOOKING (ACTUAL DELETE)
+// --------------------------------------------------
 export const cancelBooking = async (req, res) => {
   try {
-    await Booking.findByIdAndUpdate(req.params.id, {
-      status: "cancelled",
-    });
-    res.json({ success: true, message: "Booking cancelled" });
-  } catch {
-    res.json({ success: false, message: "Server error" });
+    // Change from findByIdAndUpdate to findByIdAndDelete
+    const deletedBooking = await Booking.findByIdAndDelete(req.params.id);
+
+    if (!deletedBooking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    res.json({ success: true, message: "Booking permanently deleted" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error during deletion" });
   }
 };

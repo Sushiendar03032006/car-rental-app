@@ -57,22 +57,26 @@ const MyBookings = () => {
 
   // 2. Cancel Booking
   const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+  if (!window.confirm("Are you sure you want to cancel this booking?")) return;
 
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const { data } = await axios.delete(`/api/bookings/${bookingId}`, config);
+  try {
+    const config = { headers: { Authorization: `Bearer ${token}` } };
+    
+    // This sends a DELETE request to /api/bookings/:id
+    const { data } = await axios.delete(`/api/bookings/${bookingId}`, config);
 
-      if (data.success) {
-        toast.success("Booking cancelled");
-        setBookings((prev) => prev.filter((b) => b._id !== bookingId));
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      toast.error("Error cancelling booking");
+    if (data.success) {
+      toast.success("Booking removed from database");
+      // Remove from frontend view
+      setBookings((prev) => prev.filter((b) => b._id !== bookingId));
+    } else {
+      toast.error(data.message);
     }
-  };
+  } catch (error) {
+    console.error("Delete Error:", error.response?.data);
+    toast.error("Error cancelling booking");
+  }
+};
 
   useEffect(() => {
     if (token) fetchUserBookings();

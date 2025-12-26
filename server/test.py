@@ -26,7 +26,7 @@ def automated_suite():
         "pickupDate": "2025-12-24T14:00:00",
         "returnDate": "2025-12-25T14:00:00",
         "startLocation": "Adyar, Chennai",
-        "endLocation": "Katpadi,Vellore",
+        "endLocation": "Guindy,Chennai",
         "category": "SUV",
         "transmission": "Automatic"
     }
