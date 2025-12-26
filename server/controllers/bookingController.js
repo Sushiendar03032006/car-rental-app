@@ -5,6 +5,12 @@ import mongoose from "mongoose";
 
 // Ensure there is no extra slash at the end
 
+// This goes in your .js file, NOT the .env file
+const FLASK_BASE_URL = process.env.FLASK_URL || "http://127.0.0.1:5005";
+
+// Build the endpoint
+const FLASK_ML_API_URL = `${FLASK_BASE_URL}/api/bookings/generate-price`;
+
 
 const formatForFlask = (date) => new Date(date).toISOString().split(".")[0];
 
