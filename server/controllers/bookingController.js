@@ -4,7 +4,7 @@ import axios from "axios";
 import mongoose from "mongoose";
 
 // Ensure there is no extra slash at the end
-const FLASK_ML_API_URL = "http://127.0.0.1:5005/api/bookings/generate-price";
+
 
 const formatForFlask = (date) => new Date(date).toISOString().split(".")[0];
 
@@ -56,7 +56,7 @@ export const getDynamicPrice = async (carData, pickupDate, returnDate, startLoca
   };
 
   try {
-    const response = await axios.post(FLASK_ML_API_URL, payload, {
+    const response = await axios.post(process.env.FLASK_ML_API_URL, payload, {
       timeout: 5000, // 8 seconds is plenty
     });
 
