@@ -10,25 +10,33 @@ const Login = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const onSubmitHandler = async (event) => {
     event.preventDefault();
+    setLoading(true);
 
     try {
       // 1. Handle Forgot Password Request
       if (state === "forgot") {
-        const { data } = await axios.post("/api/user/forgot-password", { email });
+        const { data } = await axios.post("/api/user/forgot-password", {
+          email,
+        });
         if (data.success) {
-          toast.success("Reset link sent! Check your email.");
+          toast.success("Check your gmail for the reset link!", {
+            duration: 6000, // Keep the message visible longer
+          });
           setState("login"); // Move back to login after success
         } else {
           toast.error(data.message);
         }
         return;
       }
+     
 
       // 2. Handle Login or Register
-      const payload = state === "register" ? { name, email, password } : { email, password };
+      const payload =
+        state === "register" ? { name, email, password } : { email, password };
       const { data } = await axios.post(`/api/user/${state}`, payload);
 
       if (data.success) {
@@ -36,13 +44,18 @@ const Login = () => {
         localStorage.setItem("token", data.token);
         setShowLogin(false);
         navigate("/");
-        toast.success(state === "register" ? "Account created!" : "Welcome back!");
+        toast.success(
+          state === "register" ? "Account created!" : "Welcome back!",
+        );
       } else {
         toast.error(data.message);
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message;
       toast.error(errorMessage);
+    }
+    finally{
+      setLoading(false);
     }
   };
 
@@ -65,15 +78,19 @@ const Login = () => {
         </button>
 
         <h2 className="text-2xl font-semibold text-center w-full text-gray-800">
-          {state === "login" ? "Login" : state === "register" ? "Create Account" : "Reset Password"}
+          {state === "login"
+            ? "Login"
+            : state === "register"
+              ? "Create Account"
+              : "Reset Password"}
         </h2>
 
         <p className="text-sm text-center text-gray-500 mb-2">
-          {state === "forgot" 
-            ? "Enter your email to receive a reset link" 
-            : state === "login" 
-            ? "Sign in to access your bookings" 
-            : "Sign up to start your journey"}
+          {state === "forgot"
+            ? "Enter your email to receive a reset link"
+            : state === "login"
+              ? "Sign in to access your bookings"
+              : "Sign up to start your journey"}
         </p>
 
         {state === "register" && (
@@ -91,7 +108,9 @@ const Login = () => {
         )}
 
         <div className="w-full">
-          <p className="text-sm font-medium text-gray-700 mb-1">Email Address</p>
+          <p className="text-sm font-medium text-gray-700 mb-1">
+            Email Address
+          </p>
           <input
             onChange={(e) => setEmail(e.target.value)}
             value={email}
@@ -108,7 +127,7 @@ const Login = () => {
             <div className="flex justify-between items-center mb-1">
               <p className="text-sm font-medium text-gray-700">Password</p>
               {state === "login" && (
-                <span 
+                <span
                   onClick={() => setState("forgot")}
                   className="text-xs text-blue-600 cursor-pointer hover:underline"
                 >
@@ -131,7 +150,11 @@ const Login = () => {
           type="submit"
           className="bg-blue-600 hover:bg-blue-700 transition-colors text-white w-full py-2.5 rounded-lg font-medium mt-2 shadow-md"
         >
-          {state === "register" ? "Create Account" : state === "login" ? "Login" : "Send Reset Link"}
+          {state === "register"
+            ? "Create Account"
+            : state === "login"
+              ? "Login"
+              : "Send Reset Link"}
         </button>
 
         <div className="text-sm text-center mt-2 text-gray-600">
