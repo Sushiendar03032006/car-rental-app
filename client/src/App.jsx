@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
@@ -22,6 +23,7 @@ import ManageBookings from "./pages/owner/ManageBookings";
 
 // Context
 import { useAppContext } from "./context/AppContext";
+import ResetPassword from "./components/ResetPassword";
 
 const App = () => {
   const { showLogin } = useAppContext();
@@ -55,6 +57,9 @@ const App = () => {
         <Route path="/cars" element={<Cars />} />
         <Route path="/car-details/:id" element={<CarDetails />} />
         <Route path="/my-bookings" element={<MyBookings />} />
+
+        {/* 2. Added Reset Route */}
+        <Route path="/reset-password/:id/:token" element={<ResetPassword/>} />
 
         {/* --- Owner Routes (Nested) --- */}
         <Route path="/owner" element={<Layout />}>

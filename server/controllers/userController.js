@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -125,4 +126,73 @@ export const getCars = async (req, res) => {
     console.log(error.message);
     res.json({ success: false, message: error.message });
   }
+};
+
+
+// ----------------------------------------------------------------
+// 5. FORGOT PASSWORD (SEND EMAIL)
+// ----------------------------------------------------------------
+export const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.json({ success: false, message: "User not found" });
+        }
+
+        // Create a one-time use secret by combining JWT_SECRET + current password hash
+        const secret = process.env.JWT_SECRET + user.password;
+        const token = jwt.sign({ id: user._id, email: user.email }, secret, { expiresIn: '15m' });
+
+        // link for frontend
+        const link = `${process.env.FRONTEND_URL}/reset-password/${user._id}/${token}`;
+
+        // Configure Nodemailer (Example with Gmail/SMTP)
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+        });
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: user.email,
+            subject: 'Password Reset Link',
+            text: `Click here to reset your password: ${link}. This link expires in 15 mins.`
+        });
+
+        res.json({ success: true, message: "Reset link sent to your email" });
+
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+};
+
+// ----------------------------------------------------------------
+// 6. RESET PASSWORD (VERIFY & UPDATE)
+// ----------------------------------------------------------------
+export const resetPassword = async (req, res) => {
+    const { id, token } = req.params;
+    const { password } = req.body;
+
+    try {
+        const user = await User.findById(id);
+        if (!user) return res.json({ success: false, message: "User not found" });
+
+        // Reconstruct the same secret used to sign the token
+        const secret = process.env.JWT_SECRET + user.password;
+        
+        // Verify token
+        jwt.verify(token, secret);
+
+        // If valid, hash new password and save
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        res.json({ success: true, message: "Password updated successfully!" });
+
+    } catch (error) {
+        res.json({ success: false, message: "Link expired or invalid" });
+    }
 };

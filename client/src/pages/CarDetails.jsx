@@ -7,7 +7,6 @@ import { toast } from "react-hot-toast";
 
 const CarDetails = () => {
   const { id } = useParams();
-
   const {
     cars,
     axios,
@@ -30,19 +29,18 @@ const CarDetails = () => {
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [estimatedPriceBreakdown, setEstimatedPriceBreakdown] = useState(null);
-
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Debounced search for location
   useEffect(() => {
     if (!searchTerm) return;
-
     const timer = setTimeout(() => {
       searchLocation(searchTerm, setStartLocation);
-    }, 500); // wait 0.5s after typing stops
-
+    }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Smooth scroll to price section
   useEffect(() => {
     if (estimatedPrice) {
       const priceSection = document.getElementById("price-section");
@@ -50,24 +48,17 @@ const CarDetails = () => {
     }
   }, [estimatedPrice]);
 
-  // ----------------------------------------------------------------
-  // 1. Fetch Car Data
-  // ----------------------------------------------------------------
+  // Fetch Car Data
   useEffect(() => {
     const fetchCarData = async () => {
       if (cars && cars.length > 0) {
-        const foundCar = cars.find((c) => {
-          const carId = c._id || c.id;
-          return String(carId) === String(id);
-        });
-
+        const foundCar = cars.find((c) => String(c._id || c.id) === String(id));
         if (foundCar) {
           setCar(foundCar);
           setStartLocation(foundCar.location);
           return;
         }
       }
-
       try {
         const { data } = await axios.get(`/api/user/cars`);
         if (data.success) {
@@ -80,70 +71,62 @@ const CarDetails = () => {
         }
       } catch (error) {
         console.error("Error fetching car:", error);
-        if (!car) toast.error("Could not load car details.");
       }
     };
-
     fetchCarData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, cars]);
 
   const searchLocation = async (query, setter) => {
     if (!query) return;
-
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${query}`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${query}`,
       );
       const data = await res.json();
-
-      if (data.length > 0) {
-        setter(data[0].display_name);
-      }
+      if (data.length > 0) setter(data[0].display_name);
     } catch (err) {
       toast.error("Location search failed");
     }
   };
 
-  // ----------------------------------------------------------------
-  // 2. Generate Price (FIXED SECTION)
-  // ----------------------------------------------------------------
-  // --- In CarDetails.jsx ---
+  // ✅ FIXED: Price Calculation Logic to prevent 'null'
+  const handleGeneratePrice = async () => {
+    if (!pickupDate || !returnDate)
+      return toast.error("Select pickup and return dates");
+    if (!startLocation || !endLocation)
+      return toast.error("Please enter both locations");
 
-const handleGeneratePrice = async () => {
-  if (!pickupDate || !returnDate) return toast.error("Select pickup and return dates");
-  if (!startLocation || !endLocation) return toast.error("Please enter both locations");
+    setLoadingPrice(true);
+    setEstimatedPrice(null); // Reset price to trigger loading UI properly
 
-  setLoadingPrice(true);
-  
-  try {
-    const { data } = await axios.post("/api/bookings/generate-price", {
-      car: id,
-      startLocation,
-      endLocation,
-      pickupDate,
-      returnDate,
-    });
+    try {
+      const { data } = await axios.post("/api/bookings/generate-price", {
+        car: id,
+        startLocation: startLocation.trim(),
+        endLocation: endLocation.trim(),
+        pickupDate,
+        returnDate,
+      });
 
-    if (data.success) {
-      setEstimatedPrice(data.totalPrice);
-      setEstimatedPriceBreakdown(data.distance_km);
+      if (data.success && data.totalPrice) {
+        // Map backend 'totalPrice' to local 'estimatedPrice' state
+        setEstimatedPrice(data.totalPrice); 
+        setEstimatedPriceBreakdown(data.distance_km);
+      } else {
+        toast.error(data.message || "Failed to calculate price");
+      }
+    } catch (err) {
+      const errorMsg =
+        err.response?.data?.message || "Pricing service unavailable.";
+      toast.error(errorMsg);
+    } finally {
+      setLoadingPrice(false);
     }
-  } catch (err) {
-    const errorMsg = err.response?.data?.message || "Pricing service is starting up. Please try again in a moment.";
-    toast.error(errorMsg);
-    console.error(err);
-  } finally {
-    setLoadingPrice(false);
-  }
-};
+  };
 
-  // ----------------------------------------------------------------
-  // 3. Submit Booking
-  // ----------------------------------------------------------------
+  // Submit Booking
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (submitting) return;
     setSubmitting(true);
 
@@ -151,7 +134,6 @@ const handleGeneratePrice = async () => {
       setSubmitting(false);
       return toast.error("Login required");
     }
-
     if (!estimatedPrice) {
       setSubmitting(false);
       return toast.error("Generate price first");
@@ -173,15 +155,10 @@ const handleGeneratePrice = async () => {
         navigate("/my-bookings");
       } else {
         toast.error(data.message);
-        setEstimatedPrice(null); // force re-check
+        setEstimatedPrice(null);
       }
     } catch (error) {
-      if (error.response?.status === 409) {
-        toast.error("Car already booked for these dates");
-        setEstimatedPrice(null);
-      } else {
-        toast.error("Booking failed");
-      }
+      toast.error(error.response?.data?.message || "Booking failed");
     } finally {
       setSubmitting(false);
     }
@@ -193,21 +170,19 @@ const handleGeneratePrice = async () => {
     <div className="px-6 md:px-16 lg:px-24 xl:px-32 mt-16 pb-20">
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 mb-6 text-gray-500 cursor-pointer hover:text-gray-800"
+        className="flex items-center gap-2 mb-6 text-gray-500 hover:text-gray-800"
       >
-        <img src={assets.arrow_icon} alt="" className="rotate-180 opacity-65" />
+        <img src={assets.arrow_icon} alt="" className="rotate-180 opacity-65" />{" "}
         Back to all cars
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
-        {/* LEFT SIDE: CAR INFO */}
         <div className="lg:col-span-2">
           <img
             src={car.image}
-            alt={car.name || "Car"}
+            alt={car.brand}
             className="w-full h-auto md:max-h-100 object-cover rounded-xl mb-6 shadow-md"
           />
-
           <div className="space-y-6">
             <div>
               <h1 className="text-3xl font-bold">
@@ -217,28 +192,25 @@ const handleGeneratePrice = async () => {
                 {car.category} • {car.year}
               </p>
             </div>
-
             <hr className="border-borderColor my-6" />
-
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="flex flex-col items-center bg-light p-4 rounded-lg">
-                <img src={assets.users_icon} alt="" className="h-5 mb-2" />
+                <img src={assets.users_icon} alt="" className="h-5 mb-2" />{" "}
                 {car.seating_capacity} Seats
               </div>
               <div className="flex flex-col items-center bg-light p-4 rounded-lg">
-                <img src={assets.fuel_icon} alt="" className="h-5 mb-2" />
+                <img src={assets.fuel_icon} alt="" className="h-5 mb-2" />{" "}
                 {car.fuel_type}
               </div>
               <div className="flex flex-col items-center bg-light p-4 rounded-lg">
-                <img src={assets.car_icon} alt="" className="h-5 mb-2" />
+                <img src={assets.car_icon} alt="" className="h-5 mb-2" />{" "}
                 {car.transmission}
               </div>
               <div className="flex flex-col items-center bg-light p-4 rounded-lg">
-                <img src={assets.location_icon} alt="" className="h-5 mb-2" />
+                <img src={assets.location_icon} alt="" className="h-5 mb-2" />{" "}
                 {car.location}
               </div>
             </div>
-
             <div>
               <h1 className="text-xl font-medium mb-3">Description</h1>
               <p className="text-gray-500">{car.description}</p>
@@ -246,15 +218,12 @@ const handleGeneratePrice = async () => {
           </div>
         </div>
 
-        {/* RIGHT SIDE: BOOKING FORM */}
+        {/* BOOKING FORM */}
         <form
           onSubmit={handleSubmit}
           className="shadow-lg h-max sticky top-24 rounded-xl p-6 space-y-5 text-gray-600 bg-white border border-gray-100"
         >
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-gray-800">Book Your Ride</h3>
-          </div>
-
+          <h3 className="text-xl font-bold text-gray-800">Book Your Ride</h3>
           <hr className="border-borderColor my-4" />
 
           <div>
@@ -286,28 +255,24 @@ const handleGeneratePrice = async () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase">
-                Start Location
+                Start Point
               </label>
               <input
                 type="text"
                 value={startLocation}
-                onChange={(e) => {
-                  setStartLocation(e.target.value);
-                }}
+                onChange={(e) => setStartLocation(e.target.value)}
                 className="border px-3 py-2 rounded-lg w-full mt-1"
                 required
               />
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase">
-                End Location
+                End Point
               </label>
               <input
                 type="text"
                 value={endLocation}
-                onChange={(e) => {
-                  setEndLocation(e.target.value);
-                }}
+                onChange={(e) => setEndLocation(e.target.value)}
                 className="border px-3 py-2 rounded-lg w-full mt-1"
                 required
               />
@@ -343,63 +308,48 @@ const handleGeneratePrice = async () => {
             </div>
           </div>
 
-          {/* PRICE CALCULATION SECTION */}
-          {loadingPrice ? (
-            <div className="text-center p-4 bg-blue-50 animate-pulse rounded-lg">
-              <p className="text-blue-600 font-medium">
-                Fetching Intercity Rates...
-              </p>
-            </div>
-          ) : estimatedPrice ? (
-            <div
-              id="price-section"
-              className="text-center bg-blue-50 border border-blue-100 py-4 rounded-lg animate-fade-in"
-            >
-              <p className="text-sm text-blue-600 font-medium">
-                Total Dynamic Price
-              </p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
-                ₹{estimatedPrice}
-              </p>
-
-              {/* NEW: Show the distance here */}
-              {estimatedPriceBreakdown && (
-                <p className="text-xs text-blue-500 font-semibold mt-1">
-                  Estimated Distance: {estimatedPriceBreakdown} km
+          {/* ✅ PRICE SECTION: Corrected logic to show result in UI */}
+          <div className="mt-4">
+            {loadingPrice ? (
+              <div className="text-center p-4 bg-blue-50 animate-pulse rounded-lg border border-blue-100">
+                <p className="text-blue-600 font-medium">
+                  Calculating Fare & Distance...
                 </p>
-              )}
+              </div>
+            ) : estimatedPrice ? (
+              <div
+                id="price-section"
+                className="text-center bg-blue-50 border border-blue-200 py-4 rounded-lg"
+              >
+                <p className="text-sm text-blue-600 font-medium uppercase tracking-wider">
+                  Estimated Fare
+                </p>
+                <p className="text-3xl font-black text-gray-900 mt-1">
+                  ₹{estimatedPrice}
+                </p>
+                {estimatedPriceBreakdown && (
+                  <p className="text-xs text-blue-500 font-semibold mt-1">
+                    Approx. Distance: {estimatedPriceBreakdown} km
+                  </p>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleGeneratePrice}
+                className="w-full py-3 bg-gray-900 text-white rounded-lg hover:bg-black font-bold transition-all"
+              >
+                Calculate Total Price
+              </button>
+            )}
+          </div>
 
-              <p className="text-[10px] text-gray-400 mt-1">
-                Price includes platform fees and base fare
-              </p>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handleGeneratePrice}
-              disabled={
-                loadingPrice ||
-                !startLocation ||
-                !endLocation ||
-                !pickupDate ||
-                !returnDate
-              }
-              className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                loadingPrice
-                  ? "bg-gray-300 cursor-not-allowed text-gray-500"
-                  : "bg-gray-800 hover:bg-gray-900 text-white"
-              }`}
-            >
-              {loadingPrice ? "Calculating Best Price..." : "Calculate Price"}
-            </button>
-          )}
-
-          {/* FINAL BOOKING BUTTON (Only show if price is generated) */}
+          {/* FINAL BOOKING BUTTON */}
           {estimatedPrice && !loadingPrice && (
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-blue-600 hover:bg-blue-700 transition-colors py-3 rounded-xl font-bold text-white shadow-md mt-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 transition-colors py-3 rounded-xl font-bold text-white shadow-md"
             >
               {submitting ? "Booking..." : "Confirm Booking"}
             </button>
