@@ -114,16 +114,9 @@ DriveNow/
 
 <h3>📁 Folder Structure for Images</h3>
 
-<pre>
-screenshots/
-├── home.png
-├── login.png
-├── signup.png
-├── booking.png
-├── pricing.png
-├── dashboard.png
-├── payment.png
-</pre>
+<img width="368" height="842" alt="image" src="https://github.com/user-attachments/assets/584cab2c-f7f8-4f8d-af69-daec8e15bb63" />
+
+
 
 <h3>📸 UI Preview</h3>
 
@@ -136,7 +129,7 @@ screenshots/
   <li>📊 Dashboard</li>
 </ul>
 
-<p><i>🔹 Replace image names if your filenames are different.</i></p>
+<
 
 <hr>
 
@@ -145,7 +138,7 @@ screenshots/
 <h3>1️⃣ Clone Repository</h3>
 
 <pre>
-git clone https://github.com/your-username/drivenow.git
+git clone https://github.com/Sushiendar03032006/car-rental-app
 </pre>
 
 <h3>2️⃣ Install Dependencies</h3>
@@ -172,7 +165,7 @@ npm install
 MONGO_URI=your_mongodb_url
 JWT_SECRET=your_secret_key
 EMAIL_API_KEY=your_brevo_key
-OSMAR_API_KEY=your_osmar_key
+
 </pre>
 
 <h3>4️⃣ Run the Project</h3>
